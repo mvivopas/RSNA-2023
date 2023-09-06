@@ -45,20 +45,27 @@ How Does preprocessing.py Work?
 1. **Folder Structure**: The script assumes a main folder called train_images containing individual folders for each patient. Each patient's folder has one or more folders for scanning sessions, housing the actual DICOM files.
 
 train_images/
-└── Patient_1/
-    └── Session_1/
-        ├── file1.dcm
-        ├── file2.dcm
-        └── ...
-└── Patient_2/
-    └── Session_1/
-        ├── file1.dcm
-        ├── file2.dcm
-        └── ...
+├── Patient_1/
+│   └── Session_1/
+│       ├── file1.dcm
+│       ├── file2.dcm
+│       └── ...
+├── Patient_2/
+│   └── Session_1/
+│       ├── file1.dcm
+│       ├── file2.dcm
+│       └── ...
 
 2. **Conversion**: For each patient and scanning session, the script reads all DICOM files, organizes them into the correct sequence, and then converts them into a single NIFTI file.
 
 3. **Output**: The converted NIFTI files are saved in an output folder, nifti_output, while maintaining the original folder structure.
+
+nifti_output/
+├── Patient_1/
+│   └── Session_1.nii.gz
+├── Patient_2/
+│   └── Session_1.nii.gz
+
 
 *How to execute the script?*
 
