@@ -62,7 +62,7 @@ train_images/
 
 3. **Output**: The converted NIFTI files are saved in an output folder, nifti_output, while maintaining the original folder structure.
 
-``plaintext
+```plaintext
 nifti_output/
 ├── Patient_1/
 │   └── Session_1.nii.gz
