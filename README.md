@@ -15,12 +15,13 @@ The complexity and time-consuming nature of interpreting CT scans for abdominal 
 Aligned with the goals of the Kaggle competition, this repository seeks to utilize Artificial Intelligence (AI) and Machine Learning (ML) for the rapid and accurate detection and severity grading of abdominal injuries based on CT scans. The intention is to develop advanced algorithms that can revolutionize trauma care standards globally.
 
 ---
-## Preprocessing.py: DICOM to NIFTI Conversion Script
+## dcm2nii.py: DICOM to NIFTI Conversion Script
 
 *What Does This Script Do?*
 
 The `preprocessing.py` script automates the conversion of medical images from DICOM (Digital Imaging and Communications in Medicine) format to NIFTI (Neuroimaging Informatics Technology Initiative) format. Simply put, this script takes a collection of 2D images (each as a DICOM file) that together make up a 3D scan of a patient's body and converts them into a single 3D file (NIFTI format) for easier analysis and manipulation.
-Why Convert from DICOM to NIFTI?
+
+*Why Convert from DICOM to NIFTI?*
 
 1. **Ease of Use**: DICOM files are essentially individual 2D slices with valuable metadata but cumbersome for 3D analysis. NIFTI consolidates these slices into one 3D image, making it easier to work with.
 

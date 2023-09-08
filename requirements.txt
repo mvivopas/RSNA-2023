@@ -1,0 +1,2 @@
+nibabel==3.2.1
+totalsegmentator==1.5.6
