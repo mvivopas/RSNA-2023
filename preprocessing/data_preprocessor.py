@@ -37,7 +37,10 @@ class Preprocessor:
         """
         # Prepare a list to hold the subfolder paths
         dicom_subfolders = []
-    
+
+        # If nifti_dir is not empty, list all existing nifties
+        prev_nifti_files = os.listdir(self.nifti_dir)
+            
         # Iterate over patient folders
         for patient_folder in os.listdir(self.data_dir):
             patient_folder_path = os.path.join(self.data_dir, patient_folder)
@@ -47,9 +50,11 @@ class Preprocessor:
                 # Iterate over subfolders containing DICOM files
                 for subfolder in os.listdir(patient_folder_path):
                         subfolder_path = os.path.join(patient_folder_path, subfolder)
+                        nifti_folder_name = '_'.join(subfolder_path.split('/')[-2:])
         
-                        # Check if it's a directory
-                        if os.path.isdir(subfolder_path):
+                        # Check if it's a directory and if not already converted
+                        if os.path.isdir(subfolder_path) and \
+                                nifti_folder_name not in prev_nifti_files:
                             dicom_subfolders.append(subfolder_path)
     
         # Define the number of threads to use for parallel processing.
