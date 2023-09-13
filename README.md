@@ -1,78 +1,82 @@
 # RSNA-2023: Traumatic Injury Diagnosis and Severity Grading
 
-## Introduction and Overview
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-### Contextual Background
+#### Table of Contents
 
-Traumatic injury constitutes a critical and pervasive public health issue on a global scale. These injuries result in over 5 million deaths annually worldwide, rendering accurate and early diagnosis a crucial component for effective medical intervention. Computed Tomography (CT) scans have become an essential tool for evaluating suspected abdominal injuries by providing detailed cross-sectional imagery.
+- [Introduction](#introduction)
+- [Installation](#installation)
+- [File Structure](#file-structure)
+- [Usage](#usage)
+- [Contributing](#contributing)
+- [License](#license)
 
-### Problem Statement
+## Introduction
 
-The complexity and time-consuming nature of interpreting CT scans for abdominal trauma, especially in cases with multiple injuries or subtle areas of active bleeding, pose a challenge for healthcare professionals. These limitations can compromise the immediacy and effectiveness of medical interventions, thus impacting patient outcomes adversely.
+In line with the objectives of the [Kaggle competition][kaggle-url], this GitHub repository is dedicated to providing a streamlined, precise, and high-performing solution for detecting and grading the severity of abdominal injuries using CT scans. Our primary aim is to craft an image preprocessing pipeline that impeccably aligns with the needs of a model. This model, when supplied with a set of organ segmentations, will estimate the probability of the organs' illness/health. Thus, enhancing diagnostic capabilities in the realm of abdominal injuries.
 
-### Objective of This Repository
 
-Aligned with the goals of the Kaggle competition, this repository seeks to utilize Artificial Intelligence (AI) and Machine Learning (ML) for the rapid and accurate detection and severity grading of abdominal injuries based on CT scans. The intention is to develop advanced algorithms that can revolutionize trauma care standards globally.
+## Installation
 
----
-## dcm2nii.py: DICOM to NIFTI Conversion Script
+To set up the Jurisprudence Semantic Search tool on your local machine, follow these steps:
 
-*What Does This Script Do?*
+1. Clone the repository:
 
-The `preprocessing.py` script automates the conversion of medical images from DICOM (Digital Imaging and Communications in Medicine) format to NIFTI (Neuroimaging Informatics Technology Initiative) format. Simply put, this script takes a collection of 2D images (each as a DICOM file) that together make up a 3D scan of a patient's body and converts them into a single 3D file (NIFTI format) for easier analysis and manipulation.
+````bash
+$ git clone https://github.com/mvivopas/RSNA-2023.git
+````
 
-*Why Convert from DICOM to NIFTI?*
+2. Navigate to the repository directory and create a virtual environment
 
-1. **Ease of Use**: DICOM files are essentially individual 2D slices with valuable metadata but cumbersome for 3D analysis. NIFTI consolidates these slices into one 3D image, making it easier to work with.
+````bash
+# Navigate to repository folder
+$ cd RSNA-2023
+# Create environment using conda
+$ conda create --name rsna python=3.11
+$ conda activate rsna
+````
 
-2. **Standardization**: NIFTI is a commonly used format in medical imaging research. It is supported by a plethora of image processing libraries and software.
+3. Install the required dependencies using pip:
 
-3. **Compatibility**: Many image analysis tools and algorithms prefer or require NIFTI format, ensuring our dataset's broader applicability.
+````bash
+$ pip install -r requirements.txt
+````
 
-4. **Efficiency**: Managing a single 3D file is often more efficient, both in terms of computational resources and workflow, compared to working with multiple 2D slices.
 
-Advantages of NIFTI for Deep Learning
+## File Structure
 
-1. **Batch Processing**: When using deep learning frameworks, it's often more efficient to pass in batches of 3D volumes. NIFTI files enable this, leading to faster training times.
+````
+- dataloaders/
+    - dataloader.py
+- preprocessing/
+    - data_preprocessor.py
+- requirements.txt
+- README.md
+````
 
-2. **Data Augmentation**: NIFTI format simplifies the implementation of 3D data augmentation techniques, which are crucial for improving the model's performance and robustness.
+- `dataloaders/`: This directory is dedicated to data loading functionality. This folder contains custom data loading code to fetch, preprocess, and organize your datasets.
+- `preprocessing/`: This directory is focused on data preprocessing tasks. Data preprocessing in this case involves transforming dicom images to nifti and segmenting this niftis into diffent organs.
 
-3. **3D Context**: Storing the entire volume in a single file allows algorithms to easily leverage the 3D context, which is often important for medical imaging tasks.
 
-4. **Memory Efficient**: NIFTI files can be more memory-efficient than a large number of individual 2D DICOM files, making it easier to manage large datasets during deep learning model training.
+## Usage
 
-How Does preprocessing.py Work?
+1. Modify the values in the `arguments.json` to match the location where data is saved.
 
-1. **Folder Structure**: The script assumes a main folder called train_images containing individual folders for each patient. Each patient's folder has one or more folders for scanning sessions, housing the actual DICOM files.
+2. Run the preprocessor script. If the process is interrumped before finishing, simoply re-run the command and the process will resume to the last subject-sesion before interruption.
 
-```plaintext
-train_images/
-├── Patient_1/
-│   └── Session_1/
-│       ├── file1.dcm
-│       ├── file2.dcm
-│       └── ...
-├── Patient_2/
-│   └── Session_1/
-│       ├── file1.dcm
-│       ├── file2.dcm
-│       └── ...
-```
+````bash
+python preprocessing/data_preprocessor.py
+````
 
-2. **Conversion**: For each patient and scanning session, the script reads all DICOM files, organizes them into the correct sequence, and then converts them into a single NIFTI file.
+## Contributing
 
-3. **Output**: The converted NIFTI files are saved in an output folder, nifti_output, while maintaining the original folder structure.
+Contributions to this repository are welcome. If you find any bugs or have suggestions for improvements, feel free to create issues or pull requests.
 
-```plaintext
-nifti_output/
-├── Patient_1/
-│   └── Session_1.nii.gz
-├── Patient_2/
-│   └── Session_1.nii.gz
-```
+## License
 
-*How to execute the script?*
+This project is licensed under the MIT License. See the LICENSE file for more details.
 
-First enter the script and change the path routes to your owns (*train_images_folder* and *nifti_output_folder*). Then execute the following:
 
-`python preprocessing.py`
+
+
+[kaggle-url]: https://www.kaggle.com/competitions/rsna-2023-abdominal-trauma-detection
