@@ -1,5 +1,6 @@
 {
     "data_folder_path": "/home/fran/DATA/rsna-2023-abdominal-trauma-detection/train_images",
     "data_niftis_path": "/home/fran/DATA/rsna-2023-abdominal-trauma-detection/nifti_files",
-    "data_segment_path": "/home/fran/DATA/rsna-2023-abdominal-trauma-detection/segment_files"
+    "data_segment_path": "/home/fran/DATA/rsna-2023-abdominal-trauma-detection/segment_files",
+    "csv_path": "/home/fran/DATA/rsna-2023-abdominal-trauma-detection/train.csv"
 }
