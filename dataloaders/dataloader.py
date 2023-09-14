@@ -5,47 +5,33 @@ from glob import glob
 
 from dipy.io.image import load_nifti
 
+import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from monai.transforms import Compose, Resize, RandFlip, RandZoom, NormalizeIntensity
 
 class RSNA_AbdominalInjuryDataset(Dataset):
-    def __init__(self, img_path, df):
-        self.img_path = img_path
-        self.subjects = glob(os.path.join(
-            self.img_path,
-            "*"
-        ))
-        self.df = pd.read_csv(df)
+    def __init__(self, data_path, csv_path):
+        self.img_path = data_path
+        self.sessions = os.listdir(self.img_path)
+        self.csv = pd.read_csv(csv_path).set_index("patient_id")
 
-        self.transform = Compose([
+        self.transforms = Compose([
             Resize((112, 112, 112)),
-            NormalizeIntensity(),
-            RandZoom(prob=0.1, min_zoom=0.85, max_zoom=1.15)
+            NormalizeIntensity()
         ])
 
     def __len__(self):
-        return len(self.subjects)
+        return len(self.sessions)
     
     def __getitem__(self, idx):
-        file_path = self.subjects[idx]
+        img_name = self.sessions[idx]
+        subject_name = img_name.split("_")[0]
 
-        if os.path.exists(file_path):
-            img, _ = load_nifti(file_path)
-            img = self.transform(
-                np.expand_dims(img, axis=0)
-            )
-        else:
-            print(f"File not found: {file_path}")
-
-        target = self.df.loc[file_path.split("_")[0], :]
-
-        return img, target
-
-
-if __name__ == "__main__":
-    dataset = RSNA_AbdominalInjuryDataset(
-        img_path = "/home/fran/DATA/rsna-2023-abdominal-trauma-detection/nifti_output",
-        df = "/home/fran/DATA/rsna-2023-abdominal-trauma-detection/train.csv"
-    )
-    dl = DataLoader(dataset, batch_size = 2, shuffle=True)
+        img, _ = load_nifti(os.path.join(self.img_path, img_name))
+        img = self.transforms(
+            np.expand_dims(img, axis=0)
+        )
+        label = self.csv.loc[int(subject_name), "bowel_healthy"]
+    
+        return (img.float(), int(label))
