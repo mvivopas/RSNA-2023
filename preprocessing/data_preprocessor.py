@@ -35,6 +35,29 @@ class Preprocessor:
         self.segment_dir: str = args['data_segment_path']
         os.makedirs(self.segment_dir, exist_ok=True)
 
+
+    def __call__(self) -> None:
+        NUM_THREADS = 2
+
+        # Convert DICOM to NIfTI
+        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+            executor.map(self.convert_dicom_to_nifti, self._get_dicom_subfolders())
+        
+        self._cleanup_temp_files()
+        
+        # Segment the NIfTI files
+        with ProcessPoolExecutor(max_workers=NUM_THREADS) as executor:
+            executor.map(self.segment_nifti_files, self._get_nifti_files_to_segment())
+        
+        # Process JSON files and crop organs
+        cropped_organs_json = os.listdir(self.segment_dir)
+        cropped_organs = os.listdir(self.nifti_dir)
+
+        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+            executor.map(self.json_organs, cropped_organs_json)
+            executor.map(self.crop_organs, cropped_organs)
+
+
     def _get_dicom_subfolders(self) -> list:
         """
         Returns a list of unconverted DICOM subfolders.
@@ -53,6 +76,7 @@ class Preprocessor:
 
         return dicom_subfolders
 
+
     def _cleanup_temp_files(self):
         """
         Cleans up temporary JSON files generated in the process.
@@ -61,6 +85,7 @@ class Preprocessor:
         for file_path in json_files:
             if os.path.exists(file_path):
                 os.remove(file_path)
+
 
     def _get_nifti_files_to_segment(self) -> list:
         """
@@ -74,6 +99,7 @@ class Preprocessor:
         ]
 
         return nifti_files_to_segment
+
 
     def convert_dicom_to_nifti(self, dcm_folder_path: str) -> None:
         """
@@ -93,6 +119,7 @@ class Preprocessor:
 
         os.rename(generated_nifti, out_file_path)
 
+
     def segment_nifti_files(self, nifti_file_path: str) -> None:
         """
         Executes TotalSegmentator on the generated NIfTI files.
@@ -100,11 +127,16 @@ class Preprocessor:
         Args:
             nifti_file_path (str): Path to the folder containing NIfTI files.
         """
-        out_path = os.path.join(self.segment_dir, nifti_file_path.split(
-            '/')[-1].replace('.nii.gz', ''))
-        totalsegmentator(nifti_file_path, out_path, roi_subset=ORGANS)
+        sub_name = nifti_file_path.split('/')[-1].replace('.nii.gz', '')
+        out_path = os.path.join(self.segment_dir, sub_name)
+        if not os.path.exists(out_path):
+            totalsegmentator(nifti_file_path, out_path, roi_subset=ORGANS)
+        else:
+            print(f'Subject {sub_name} already segmented')
+
 
     def json_organs(self, subject) -> None:
+        # TODO: Add docstring
         value = {subject: {}}
 
         transform = CropForeground(return_coords=True)
@@ -136,7 +168,9 @@ class Preprocessor:
         with open(filename, 'w') as json_file:
             json.dump(existing_data, json_file, indent=6)
     
+    
     def crop_organs(self, subject):
+        # TODO: Add docstring
         filename = os.path.join(self.working_dir, 'cropped_organs.json')
         with open(filename, 'r') as json_file:
             coordinates = json.load(json_file)
@@ -166,26 +200,6 @@ class Preprocessor:
                                subject.strip(".nii.gz"),
                                subject))
 
-    def __call__(self) -> None:
-        NUM_THREADS = 3
-
-        # Convert DICOM to NIfTI
-        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            executor.map(self.convert_dicom_to_nifti, self._get_dicom_subfolders()[:10])
-        
-        self._cleanup_temp_files()
-        
-        # Segment the NIfTI files
-        with ProcessPoolExecutor(max_workers=3) as executor:
-            executor.map(self.segment_nifti_files, self._get_nifti_files_to_segment())
-        
-        # Process JSON files and crop organs
-        cropped_organs_json = os.listdir(self.segment_dir)
-        cropped_organs = os.listdir(self.nifti_dir)
-
-        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            executor.map(self.json_organs, cropped_organs_json)
-            executor.map(self.crop_organs, cropped_organs)
 
 if __name__ == '__main__':
     preprocessor = Preprocessor()
