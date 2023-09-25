@@ -1,99 +1,105 @@
 from __future__ import annotations
-
+import os
 import glob
 import json
-import os
 import subprocess
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures import ThreadPoolExecutor
+import numpy as np
+import nibabel as nib
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from functools import lru_cache
 
 from totalsegmentator.python_api import totalsegmentator
+from dipy.io.image import load_nifti
+from monai.transforms import CropForeground
 
 ARGS_PATH = 'arguments.json'
-
+ORGANS = ['liver', 'spleen', 'kidney_right', 'kidney_left', 'small_bowel']
 
 class Preprocessor:
-    def __init__(self):
+
+    @lru_cache(maxsize=None)
+    def get_args(self):
         """
-        Initializes the Preprocessor class with the data folder
-        path from arguments.json.
+        Loads the arguments from the JSON file and caches them.
         """
-        # Load arguments from a JSON file
         with open(ARGS_PATH) as f:
-            args = json.load(f)
-
+            return json.load(f)
+            
+    def __init__(self):
+        args = self.get_args()
+        
+        self.working_dir: str = args['working_dir']
         self.data_dir: str = args['data_folder_path']
-
         self.nifti_dir: str = args['data_niftis_path']
         os.makedirs(self.nifti_dir, exist_ok=True)
-
         self.segment_dir: str = args['data_segment_path']
         os.makedirs(self.segment_dir, exist_ok=True)
 
-    def __call__(self) -> None:
-        """
-        Main method to execute DICOM to NIfTI conversion and
-        segmentation for all patients.
-        """
-        # Prepare a list to hold the subfolder paths
-        dicom_subfolders = []
 
-        # If nifti_dir is not empty, list all existing nifties
+    def __call__(self) -> None:
+        NUM_THREADS = 2
+
+        # Convert DICOM to NIfTI
+        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+            executor.map(self.convert_dicom_to_nifti, self._get_dicom_subfolders())
+        
+        self._cleanup_temp_files()
+        
+        # Segment the NIfTI files
+        with ProcessPoolExecutor(max_workers=NUM_THREADS) as executor:
+            executor.map(self.segment_nifti_files, self._get_nifti_files_to_segment())
+        
+        # Process JSON files and crop organs
+        cropped_organs_json = os.listdir(self.segment_dir)
+        cropped_organs = os.listdir(self.nifti_dir)
+
+        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+            executor.map(self.json_organs, cropped_organs_json)
+            executor.map(self.crop_organs, cropped_organs)
+
+
+    def _get_dicom_subfolders(self) -> list:
+        """
+        Returns a list of unconverted DICOM subfolders.
+        """
+        dicom_subfolders = []
         prev_nifti_files = os.listdir(self.nifti_dir)
 
-        # Iterate over patient folders
         for patient_folder in os.listdir(self.data_dir):
             patient_folder_path = os.path.join(self.data_dir, patient_folder)
-
-            # Check if it's a directory
             if os.path.isdir(patient_folder_path):
-                # Iterate over subfolders containing DICOM files
                 for subfolder in os.listdir(patient_folder_path):
-                    subfolder_path = os.path.join(
-                        patient_folder_path, subfolder)
-                    nifti_folder_name = '_'.join(
-                        subfolder_path.split(
-                            '/',
-                        )[-2:],
-                    ) + '.nii.gz'
-
-                    # Check if it's a directory and if not already converted
-                    if os.path.isdir(subfolder_path) and \
-                            nifti_folder_name not in prev_nifti_files:
+                    subfolder_path = os.path.join(patient_folder_path, subfolder)
+                    nifti_folder_name = '_'.join(subfolder_path.split('/')[-2:]) + '.nii.gz'
+                    if os.path.isdir(subfolder_path) and nifti_folder_name not in prev_nifti_files:
                         dicom_subfolders.append(subfolder_path)
 
-        # Define the number of threads to use for parallel processing.
-        # This number can be adjusted based on the resources available and the number of cores.
-        NUM_THREADS = 4
+        return dicom_subfolders
 
-        # Use ThreadPoolExecutor for parallel processing
-        with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            executor.map(self.convert_dicom_to_nifti, dicom_subfolders)
 
-        # Get a list of all .json files in the directory
+    def _cleanup_temp_files(self):
+        """
+        Cleans up temporary JSON files generated in the process.
+        """
         json_files = glob.glob(f'{self.nifti_dir}/*.json')
+        for file_path in json_files:
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
-        # Using list comprehension to remove the files
-        [os.remove(file_path)
-         for file_path in json_files if os.path.exists(file_path)]
 
-        # If segment_dir is not empty, list all existing segmentations
+    def _get_nifti_files_to_segment(self) -> list:
+        """
+        Returns a list of NIfTI files that are yet to be segmented.
+        """
         prev_segment_files = os.listdir(self.segment_dir)
+        nifti_files_to_segment = [
+            os.path.join(self.nifti_dir, nifti_file)
+            for nifti_file in os.listdir(self.nifti_dir)
+            if nifti_file.split('/')[-1].replace('.nii.gz', '') not in prev_segment_files
+        ]
 
-        # Generate list of nifti file paths to segment if not in segment folder
-        nifti_files_to_segment = []
-        for nifti_file in os.listdir(self.nifti_dir):
-            segment_folder_name = nifti_file.split(
-                '/')[-1].replace('.nii.gz', '')
-            if segment_folder_name not in prev_segment_files:
-                nifti_files_to_segment.append(
-                    os.path.join(self.nifti_dir, nifti_file))
+        return nifti_files_to_segment
 
-        # Using ProcessPoolExecutor to utilize all possible CPU cores
-        # for handling the GPU tasks. Only 3 tasks allowed to run concurrently
-        # to stay within GPU memory constraints
-        with ProcessPoolExecutor(max_workers=3) as executor:
-            executor.map(self.segment_nifti_files, nifti_files_to_segment)
 
     def convert_dicom_to_nifti(self, dcm_folder_path: str) -> None:
         """
@@ -113,6 +119,7 @@ class Preprocessor:
 
         os.rename(generated_nifti, out_file_path)
 
+
     def segment_nifti_files(self, nifti_file_path: str) -> None:
         """
         Executes TotalSegmentator on the generated NIfTI files.
@@ -120,14 +127,80 @@ class Preprocessor:
         Args:
             nifti_file_path (str): Path to the folder containing NIfTI files.
         """
-        out_path = os.path.join(self.segment_dir, nifti_file_path.split(
-            '/')[-1].replace('.nii.gz', ''))
-        totalsegmentator(nifti_file_path, out_path, roi_subset=[
-                         'liver', 'spleen', 'kidney_right', 'kidney_left', 'small_bowel'])
+        sub_name = nifti_file_path.split('/')[-1].replace('.nii.gz', '')
+        out_path = os.path.join(self.segment_dir, sub_name)
+        if not os.path.exists(out_path):
+            totalsegmentator(nifti_file_path, out_path, roi_subset=ORGANS)
+        else:
+            print(f'Subject {sub_name} already segmented')
+
+
+    def json_organs(self, subject) -> None:
+        # TODO: Add docstring
+        value = {subject: {}}
+
+        transform = CropForeground(return_coords=True)
+
+        for organ in ORGANS:
+            mask, _ = load_nifti(os.path.join(self.segment_dir, subject, organ + ".nii.gz"))
+            _, coords_in, coords_end = transform(np.expand_dims(mask, axis=0))
+
+            coords_in = coords_in.tolist()
+            coords_end = coords_end.tolist()
+
+            value[subject][organ] = {
+                'start': coords_in,
+                'end': coords_end
+            }
+
+        # Check if the JSON file exists
+        filename = os.path.join(self.working_dir, 'cropped_organs.json')
+        if os.path.exists(filename):
+            with open(filename, 'r') as json_file:
+                existing_data = json.load(json_file)
+        else:
+            existing_data = {}
+
+        # Update the existing data with the new subject's data
+        existing_data.update(value)
+
+        # Save the updated dictionary to JSON
+        with open(filename, 'w') as json_file:
+            json.dump(existing_data, json_file, indent=6)
+    
+    
+    def crop_organs(self, subject):
+        # TODO: Add docstring
+        filename = os.path.join(self.working_dir, 'cropped_organs.json')
+        with open(filename, 'r') as json_file:
+            coordinates = json.load(json_file)
+
+        os.makedirs(os.path.join(
+            self.nifti_dir,
+            subject.strip(".nii.gz")), exist_ok=True)
+        
+        img, _ = load_nifti(os.path.join(self.nifti_dir, subject))
+
+        for organ in ORGANS:
+            organ_coordinates = coordinates[subject.strip(".nii.gz")][organ]
+            organ_img = img[
+                organ_coordinates["start"][0]:organ_coordinates["end"][0],
+                organ_coordinates["start"][1]:organ_coordinates["end"][1],
+                organ_coordinates["start"][2]:organ_coordinates["end"][2]
+            ]
+            organ_img = nib.Nifti1Image(organ_img, np.eye(4))
+
+            nib.save(organ_img, os.path.join(self.nifti_dir,
+                                            subject.strip(".nii.gz"),
+                                            organ + ".nii.gz"))
+            
+        os.rename(os.path.join(self.nifti_dir, 
+                               subject), 
+                  os.path.join(self.nifti_dir,
+                               subject.strip(".nii.gz"),
+                               subject))
 
 
 if __name__ == '__main__':
-    # Initialize the preprocessor
     preprocessor = Preprocessor()
-    # Run the preprocessor for DICOM to NIfTI conversion and segmentation
     preprocessor()

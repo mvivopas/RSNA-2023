@@ -21,6 +21,7 @@ from DenseNet3D import DenseNet121, DenseNet169, DenseNet201, DenseNet264
 from ResNet3D import ResNet50, ResNet101, ResNet152
 
 ARGS_PATH = 'arguments.json'
+ORGANS = ['liver', 'spleen', 'kidney_right', 'kidney_left', 'small_bowel']
 
 if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -32,7 +33,8 @@ if __name__ == "__main__":
     data_dir: str = args['data_niftis_path']
     csv_dir: str = args['csv_path']
 
-    full_dataset = RSNA_AbdominalInjuryDataset(data_dir, csv_dir)
+    ## TODO: Adapt this part of the code to work with different organs called by the function
+    full_dataset = RSNA_AbdominalInjuryDataset(data_dir, csv_dir, "bowel")
 
     # Initialize k-Fold cross-validation
     k_folds = 3
@@ -63,7 +65,7 @@ if __name__ == "__main__":
 
         # Initialize model, loss, optimizer
         #model = DesneNet121().to(device)
-        model = ResNet50(num_classes=1, channels=1).to(device)
+        model = ResNet50(num_classes=2, channels=1).to(device)
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(model.parameters(), lr=0.001)
 
